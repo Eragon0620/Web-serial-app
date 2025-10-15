@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USB COM Port 監測界面</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .control-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+
+        .status-indicator {
+            font-weight: bold;
+        }
+
+        .disconnected {
+            color: #d9534f;
+        }
+
+        .connected {
+            color: #5cb85c;
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0069d9;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        #clear-button {
+            background-color: #6c757d;
+        }
+
+        #save-button {
+            background-color: #28a745;
+        }
+
+        .log-area {
+            height: 300px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            font-family: monospace;
+            margin-bottom: 20px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .timestamp {
+            color: #6c757d;
+            margin-right: 10px;
+        }
+
+        .input-data {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .output-data {
+            color: #007bff;
+            font-weight: bold;
+        }
+
+        .send-area {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        #send-message {
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 5px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        #save-settings {
+            width: 100%;
+            background-color: #28a745;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>USB COM Port 監測界面</h1>
+        
+        <div class="control-panel">
+            <div class="status-indicator">
+                <span id="connection-status" class="disconnected">未連接</span>
+            </div>
+            <div class="control-buttons">
+                <button id="connect-button">連接 COM Port</button>
+                <button id="settings-button">設定</button>
+                <button id="save-button">儲存記錄</button>
+                <button id="clear-button">清除訊息</button>
+            </div>
+        </div>
+        
+        <h2>通訊記錄</h2>
+        <div id="communication-log" class="log-area"></div>
+        
+        <h2>發送訊息</h2>
+        <div class="send-area">
+            <input type="text" id="send-message" placeholder="輸入要發送的訊息...">
+            <button id="send-button" disabled>發送</button>
+        </div>
+        
+        <div id="settings-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>COM Port 設定</h2>
+                <form id="settings-form">
+                    <div class="form-group">
+                        <label for="baud-rate">傳輸速率 (Baud Rate):</label>
+                        <select id="baud-rate">
+                            <option value="9600">9600</option>
+                            <option value="19200">19200</option>
+                            <option value="38400">38400</option>
+                            <option value="57600">57600</option>
+                            <option value="115200">115200</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="data-bits">資料位元 (Data Bits):</label>
+                        <select id="data-bits">
+                            <option value="7">7</option>
+                            <option value="8" selected>8</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="parity">同位元檢查 (Parity):</label>
+                        <select id="parity">
+                            <option value="none" selected>無 (None)</option>
+                            <option value="even">偶校驗 (Even)</option>
+                            <option value="odd">奇校驗 (Odd)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="stop-bits">停止位元 (Stop Bits):</label>
+                        <select id="stop-bits">
+                            <option value="1" selected>1</option>
+                            <option value="2">2</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="encoding">字符編碼 (Encoding):</label>
+                        <select id="encoding">
+                            <option value="utf-8" selected>UTF-8</option>
+                            <option value="big5">Big5 (繁體中文)</option>
+                            <option value="gbk">GBK (簡體中文)</option>
+                            <option value="shift-jis">Shift-JIS (日文)</option>
+                            <option value="windows-1252">Windows-1252 (西歐)</option>
+                            <option value="ascii">ASCII</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" id="save-settings">儲存設定</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局變量
+        let port = null;
+        let reader = null;
+        let writer = null;
+        let readLoopActive = false;
+        let updateInterval = null;
+        let textDecoder = new TextDecoder();
+        let partialData = '';
+        let receivedDataBuffer = [];
+
+        // COM端口設定
+        let comSettings = {
+            baudRate: 9600,
+            dataBits: 8,
+            parity: "none",
+            stopBits: 1,
+            encoding: "utf-8"
+        };
+
+        // DOM元素
+        const connectButton = document.getElementById('connect-button');
+        const settingsButton = document.getElementById('settings-button');
+        const saveButton = document.getElementById('save-button');
+        const clearButton = document.getElementById('clear-button');
+        const sendButton = document.getElementById('send-button');
+        const sendMessageInput = document.getElementById('send-message');
+        const communicationLog = document.getElementById('communication-log');
+        const connectionStatus = document.getElementById('connection-status');
+        const settingsModal = document.getElementById('settings-modal');
+        const closeModalButton = document.querySelector('.close');
+        const settingsForm = document.getElementById('settings-form');
+
+        // 檢查瀏覽器是否支援Web Serial API
+        if (!("serial" in navigator)) {
+            alert("您的瀏覽器不支援Web Serial API。請使用Chrome或Edge瀏覽器。");
+            connectButton.disabled = true;
+            settingsButton.disabled = true;
+            sendButton.disabled = true;
+            saveButton.disabled = true;
+        }
+
+        // 連接按鈕事件
+        connectButton.addEventListener('click', async () => {
+            try {
+                if (port) {
+                    // 如果已連接，則斷開連接
+                    await closeConnection();
+                    connectButton.textContent = '連接 COM Port';
+                    connectionStatus.textContent = '未連接';
+                    connectionStatus.className = 'disconnected';
+                    sendButton.disabled = true;
+                } else {
+                    // 請求用戶選擇一個串口
+                    port = await navigator.serial.requestPort();
+                    await port.open({
+                        baudRate: comSettings.baudRate,
+                        dataBits: comSettings.dataBits,
+                        parity: comSettings.parity,
+                        stopBits: comSettings.stopBits
+                    });
+                    
+                    // 設置讀取器和寫入器
+                    await setupConnection();
+                    
+                    connectButton.textContent = '斷開連接';
+                    connectionStatus.textContent = `已連接 (${comSettings.baudRate}, ${comSettings.dataBits}, ${comSettings.parity}, ${comSettings.stopBits})`;
+                    connectionStatus.className = 'connected';
+                    sendButton.disabled = false;
+                    
+                    // 啟動定時更新
+                    startPeriodicUpdate();
+                    
+                    // 記錄連接事件
+                    logMessage('系統', `已連接到COM Port`);
+                }
+            } catch (error) {
+                console.error("連接錯誤:", error);
+                alert(`連接錯誤: ${error.message}`);
+            }
+        });
+
+        // 設定按鈕事件
+        settingsButton.addEventListener('click', () => {
+            document.getElementById('baud-rate').value = comSettings.baudRate;
+            document.getElementById('data-bits').value = comSettings.dataBits;
+            document.getElementById('parity').value = comSettings.parity;
+            document.getElementById('stop-bits').value = comSettings.stopBits;
+            document.getElementById('encoding').value = comSettings.encoding;
+            
+            settingsModal.style.display = 'block';
+        });
+
+        // 關閉彈出視窗
+        closeModalButton.addEventListener('click', () => {
+            settingsModal.style.display = 'none';
+        });
+
+        // 點擊彈出視窗外部關閉
+        window.addEventListener('click', (event) => {
+            if (event.target === settingsModal) {
+                settingsModal.style.display = 'none';
+            }
+        });
+
+        // 儲存設定
+        settingsForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            
+            comSettings.baudRate = parseInt(document.getElementById('baud-rate').value);
+            comSettings.dataBits = parseInt(document.getElementById('data-bits').value);
+            comSettings.parity = document.getElementById('parity').value;
+            comSettings.stopBits = parseInt(document.getElementById('stop-bits').value);
+            comSettings.encoding = document.getElementById('encoding').value;
+            
+            try {
+                textDecoder = new TextDecoder(comSettings.encoding, { fatal: false });
+            } catch (error) {
+                console.error("編碼設定錯誤:", error);
+                textDecoder = new TextDecoder('utf-8', { fatal: false });
+                comSettings.encoding = 'utf-8';
+                alert(`編碼設定錯誤: ${error.message}。已重設為UTF-8。`);
+            }
+            
+            if (port) {
+                alert("設定已儲存。請重新連接COM Port以應用新設定。");
+                closeConnection().then(() => {
+                    connectButton.textContent = '連接 COM Port';
+                    connectionStatus.textContent = '未連接';
+                    connectionStatus.className = 'disconnected';
+                    sendButton.disabled = true;
+                });
+            } else {
+                alert("設定已儲存。");
+            }
+            
+            settingsModal.style.display = 'none';
+        });
+
+        // 清除按鈕事件
+        clearButton.addEventListener('click', () => {
+            communicationLog.innerHTML = '';
+        });
+
+        // 儲存按鈕事件 - 修正版本，確保所有記錄都被保存
+        saveButton.addEventListener('click', async () => {
+            if (communicationLog.childElementCount === 0) {
+                alert("沒有通訊記錄可供儲存。");
+                return;
+            }
+            
+            // 收集所有通訊記錄，確保完整保存每一行
+            let logContent = "";
+            const logEntries = communicationLog.querySelectorAll('.log-entry');
+            
+            logEntries.forEach(entry => {
+                // 獲取時間戳
+                const timestamp = entry.querySelector('.timestamp').textContent;
+                
+                // 獲取消息內容（可能是input或output或系統消息）
+                let messageContent;
+                if (entry.querySelector('.input-data')) {
+                    messageContent = entry.querySelector('.input-data').textContent;
+                } else if (entry.querySelector('.output-data')) {
+                    messageContent = entry.querySelector('.output-data').textContent;
+                } else {
+                    // 系統消息，直接獲取文本內容但排除時間戳部分
+                    messageContent = entry.textContent.substring(timestamp.length);
+                }
+                
+                // 組合完整行
+                logContent += timestamp + messageContent + "\r\n";
+            });
+            
+            const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
+            
+            const now = new Date();
+            const dateStr = now.toLocaleDateString().replace(/\//g, '');
+            const timeStr = now.toLocaleTimeString().replace(/:/g, '');
+            const defaultFilename = `COM_Log_${dateStr}_${timeStr}.txt`;
+            
+            // 檢查是否支援 File System Access API
+            if ('showSaveFilePicker' in window) {
+                try {
+                    // 使用 File System Access API 顯示存檔對話框
+                    const options = {
+                        suggestedName: defaultFilename,
+                        types: [{
+                            description: '文字檔案',
+                            accept: { 'text/plain': ['.txt'] }
+                        }]
+                    };
+                    
+                    const fileHandle = await window.showSaveFilePicker(options);
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    
+                    logMessage('系統', `通訊記錄已儲存為 ${fileHandle.name}`);
+                } catch (error) {
+                    // 處理錯誤（如用戶取消）
+                    if (error.name !== 'AbortError') {
+                        console.error("儲存檔案錯誤:", error);
+                        alert(`儲存檔案錯誤: ${error.message}`);
+                        
+                        // 如果出錯，回退到傳統下載方法
+                        downloadFile(blob, defaultFilename);
+                    }
+                }
+            } else {
+                // 回退到傳統下載方法
+                downloadFile(blob, defaultFilename);
+                logMessage('系統', `通訊記錄已儲存為 ${defaultFilename}`);
+            }
+        });
+
+        // 傳統檔案下載方法
+        function downloadFile(blob, filename) {
+            const downloadLink = document.createElement('a');
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.download = filename;
+            downloadLink.style.display = 'none';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            URL.revokeObjectURL(downloadLink.href);
+        }
+
+        // 發送按鈕事件
+        sendButton.addEventListener('click', async () => {
+            const message = sendMessageInput.value.trim();
+            if (!message) return;
+            
+            if (!port || !writer) {
+                alert("請先連接COM Port");
+                return;
+            }
+            
+            try {
+                const encoder = new TextEncoder();
+                await writer.write(encoder.encode(message + '\n'));
+                
+                logMessage('output', message);
+                
+                sendMessageInput.value = '';
+            } catch (error) {
+                console.error("發送錯誤:", error);
+                alert(`發送錯誤: ${error.message}`);
+            }
+        });
+
+        // 按下Enter鍵發送訊息
+        sendMessageInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                sendButton.click();
+            }
+        });
+
+        // 設置連接
+        async function setupConnection() {
+            const writableStream = port.writable;
+            writer = writableStream.getWriter();
+            
+            const readableStream = port.readable;
+            reader = readableStream.getReader();
+            
+            readLoopActive = true;
+            partialData = '';
+            readLoop();
+        }
+
+        // 讀取循環
+        async function readLoop() {
+            while (readLoopActive) {
+                try {
+                    const { value, done } = await reader.read();
+                    if (done) {
+                        reader.releaseLock();
+                        break;
+                    }
+                    
+                    processReceivedData(value);
+                    
+                } catch (error) {
+                    console.error("讀取錯誤:", error);
+                    break;
+                }
+            }
+        }
+
+        // 處理接收到的數據
+        function processReceivedData(value) {
+            try {
+                let decodedData = textDecoder.decode(value, { stream: true });
+                
+                const completeData = partialData + decodedData;
+                const lines = completeData.split(/\r\n|\n|\r/);
+                
+                partialData = lines.pop() || '';
+                
+                for (const line of lines) {
+                    if (line.trim()) {
+                        receivedDataBuffer.push({
+                            time: new Date(),
+                            data: line
+                        });
+                    }
+                }
+                
+                if (partialData.length > 1000) {
+                    receivedDataBuffer.push({
+                        time: new Date(),
+                        data: partialData
+                    });
+                    partialData = '';
+                }
+            } catch (error) {
+                console.error("數據處理錯誤:", error);
+                
+                const hexData = Array.from(value)
+                    .map(b => '0x' + b.toString(16).padStart(2, '0'))
+                    .join(' ');
+                
+                receivedDataBuffer.push({
+                    time: new Date(),
+                    data: `[解碼錯誤] ${hexData}`
+                });
+            }
+        }
+
+        // 啟動定時更新
+        function startPeriodicUpdate() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+            
+            updateInterval = setInterval(() => {
+                if (receivedDataBuffer.length > 0) {
+                    receivedDataBuffer.forEach(item => {
+                        logMessage('input', item.data);
+                    });
+                    
+                    receivedDataBuffer = [];
+                }
+            }, 500);
+        }
+
+        // 關閉連接
+        async function closeConnection() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+                updateInterval = null;
+            }
+            
+            readLoopActive = false;
+            
+            if (reader) {
+                await reader.cancel();
+                reader.releaseLock();
+                reader = null;
+            }
+            
+            if (writer) {
+                await writer.close();
+                writer = null;
+            }
+            
+            if (port) {
+                await port.close();
+                port = null;
+            }
+            
+            logMessage('系統', '已斷開COM Port連接');
+        }
+
+        // 記錄訊息到通訊記錄
+        function logMessage(type, message) {
+            const now = new Date();
+            const timestamp = `[${now.toLocaleDateString()} ${now.toLocaleTimeString()}]`;
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            
+            const timestampSpan = document.createElement('span');
+            timestampSpan.className = 'timestamp';
+            timestampSpan.textContent = timestamp;
+            
+            const messageSpan = document.createElement('span');
+            
+            if (type === 'input') {
+                messageSpan.className = 'input-data';
+                messageSpan.textContent = ` [Input] ${message}`;
+            } else if (type === 'output') {
+                messageSpan.className = 'output-data';
+                messageSpan.textContent = ` [Output] ${message}`;
+            } else {
+                messageSpan.textContent = ` ${message}`;
+            }
+            
+            logEntry.appendChild(timestampSpan);
+            logEntry.appendChild(messageSpan);
+            
+            communicationLog.appendChild(logEntry);
+            communicationLog.scrollTop = communicationLog.scrollHeight;
+        }
+
+        // 初始化
+        logMessage('系統', '歡迎使用USB COM Port監測界面。請點擊"連接COM Port"按鈕開始。');
+    </script>
+</body>
+</html>
